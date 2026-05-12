@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tilin's Kitchen — Preguntas y Respuestas | IPN ESCOM TLN</title>
+  <meta name="description" content="Preguntas críticas para la exposición del proyecto Tilin's Kitchen en Tecnologías del Lenguaje Natural — IPN ESCOM. Con respuestas sugeridas por categoría." />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f0f0f; color: #f0ece4; font-family: 'Georgia', 'Times New Roman', serif; }
+    button { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const categories = [
+      {
+        id: "motivacion",
+        label: "Motivación y diseño",
+        color: "#C0392B",
+        emoji: "🎯",
+        questions: [
+          {
+            q: "Eligieron SVM sobre LLMs para evitar alucinaciones, pero ¿cómo maneja el sistema consultas ambiguas o con errores ortográficos que el SVM no reconoce?",
+            a: "El sistema debería contar con un mecanismo de fallback claro: por ejemplo, devolver un mensaje genérico de 'no entendí tu consulta' o solicitar al usuario que reformule. Si no lo tienen implementado, es una brecha importante porque los usuarios reales cometen errores ortográficos constantemente. Una solución sería agregar corrección ortográfica antes del pipeline (por ejemplo con SymSpell) o entrenar el SVM con variantes ruidosas."
+          },
+          {
+            q: "¿Por qué fijaron el umbral de similitud coseno en 0.05? Ese valor parece muy bajo — ¿no podría devolver recetas completamente irrelevantes?",
+            a: "Un umbral tan bajo indica que el sistema priorizó no dejar al usuario sin respuesta, aunque el resultado sea poco preciso. La justificación técnica podría ser que, en espacios TF-IDF de alta dimensión, incluso consultas relacionadas obtienen valores de coseno bajos. Sin embargo, sería recomendable mostrar evidencia empírica (curvas precisión-recall a distintos umbrales) que justifique ese valor específico."
+          },
+          {
+            q: "¿Probaron otras técnicas de clasificación como Naive Bayes, Random Forest o k-NN antes de decidirse por SVM? ¿Tienen métricas comparativas?",
+            a: "Idealmente deberían presentar una tabla comparativa de al menos 2-3 modelos base. SVM es una elección sólida para corpus pequeño y alta dimensionalidad, pero sin comparación queda como una decisión no justificada empíricamente. Si no realizaron este análisis, mencionarlo como trabajo futuro reforzaría la honestidad del proyecto."
+          },
+        ]
+      },
+      {
+        id: "datos",
+        label: "Datos y limpieza",
+        color: "#1A5276",
+        emoji: "📊",
+        questions: [
+          {
+            q: "Pasaron de 62,126 recetas a solo 3,783 en producción — una reducción del 94%. ¿Cómo garantizan que esa muestra es representativa y no introduce sesgos?",
+            a: "Es un punto crítico. La reducción es drástica y podría sesgar el sistema hacia ciertos tipos de platillos italianos (por ejemplo, si quedaron más pastas que risottos). Una buena respuesta incluiría un análisis de distribución antes y después de la limpieza, mostrando que las proporciones de categorías se mantienen. Si no hicieron ese análisis, es una deuda técnica importante."
+          },
+          {
+            q: "Mencionan una 'limpieza híbrida de etiquetas' para detectar recetas veganas con ingredientes como pancetta. ¿Qué tan automatizada fue esa limpieza y cuántos casos requirieron revisión manual?",
+            a: "Esta es la parte más delicada del proyecto porque afecta directamente la seguridad alimentaria. Deberían tener un número concreto de registros corregidos manualmente y documentar las reglas de detección usadas. Si la limpieza fue 100% manual, no escalaría; si fue automática, ¿cómo validaron que no hubo falsos negativos (recetas inseguras que pasaron como seguras)?"
+          },
+          {
+            q: "El dataset de Kaggle fue creado por un tercero. ¿Verificaron la calidad y confiabilidad de las etiquetas dietéticas originales antes de usarlas como base de su sistema de seguridad?",
+            a: "Este es un riesgo subestimado. Si las etiquetas originales del dataset tienen errores (que en datasets públicos de Kaggle es común), la limpieza híbrida podría no ser suficiente. Una auditoría de muestra aleatoria con revisión humana de 100-200 recetas habría dado mayor confianza a sus afirmaciones de seguridad."
+          },
+        ]
+      },
+      {
+        id: "modelo",
+        label: "Modelo y rendimiento",
+        color: "#117A65",
+        emoji: "🤖",
+        questions: [
+          {
+            q: "Tienen solo 5 intenciones. ¿Qué sucede si el usuario escribe algo fuera de esas categorías, como una queja, una pregunta sobre el precio o un saludo?",
+            a: "Si el SVM clasifica toda entrada en una de las 5 intenciones forzosamente, habrá errores absurdos: un saludo podría clasificarse como Book_Table. Una solución es agregar una clase 'Out_of_Scope' o usar un umbral de confianza mínimo en la probabilidad del SVM (por ejemplo, si P < 0.6, responder con un mensaje genérico). Si no tienen esto, el sistema se comportará de forma impredecible en producción real."
+          },
+          {
+            q: "Hay confusión entre Book_Table y Modify_Booking. ¿Cuántos ejemplos de entrenamiento tienen por intención y cómo validaron que el conjunto de prueba no está sesgado?",
+            a: "El desempeño del SVM depende fuertemente del balance de clases y la calidad de los ejemplos. Si Book_Table tiene 10× más ejemplos que Modify_Booking, el F1 de 0.93 podría ser engañoso. Deberían mostrar el número de instancias por clase y confirmar que usaron stratified split para train/test."
+          },
+          {
+            q: "El F1 global es 0.94, pero ¿evaluaron el sistema con usuarios reales o solo con datos sintéticos generados por el equipo? ¿Existe riesgo de sesgo de confirmación en el corpus de prueba?",
+            a: "Si el corpus de prueba lo generó el mismo equipo que el de entrenamiento, existe un sesgo de distribución: el modelo aprende las formas en que ese equipo específico escribe consultas, no cómo lo haría un usuario real. Una validación con al least 10 usuarios externos escribiendo consultas naturales daría métricas mucho más confiables."
+          },
+        ]
+      },
+      {
+        id: "arquitectura",
+        label: "Arquitectura y escalabilidad",
+        color: "#6C3483",
+        emoji: "🏗️",
+        questions: [
+          {
+            q: "Flask con archivos .pkl — ¿cómo escala ante múltiples usuarios simultáneos? ¿Tienen algún mecanismo de concurrencia o es single-threaded?",
+            a: "Flask por defecto es single-threaded en modo desarrollo. En producción, con Gunicorn y múltiples workers se puede escalar, pero cargar el modelo .pkl en cada worker consume memoria. Para un proyecto académico esto es aceptable, pero en producción real necesitarían un servidor de modelos dedicado (como TorchServe o un endpoint en la nube) o al menos describir el límite de usuarios concurrentes que soporta."
+          },
+          {
+            q: "Los modelos están serializados en archivos .pkl locales. ¿Cómo se actualizan cuando el dataset o el modelo cambian? ¿Tienen algún proceso de versionado?",
+            a: "Sin versionado de modelos, es imposible saber qué versión está en producción o revertir a una anterior si hay una regresión. Herramientas como MLflow o DVC son el estándar para esto. Para un proyecto académico, al menos documentar la fecha y métricas del modelo desplegado en un archivo README sería suficiente."
+          },
+          {
+            q: "La demo está desplegada en GitHub Pages (estático) pero Flask corre en backend. ¿Dónde está desplegado el backend y cómo manejan los costos y disponibilidad del servidor?",
+            a: "Este es frecuentemente el punto débil de proyectos académicos: el frontend está en GitHub Pages (gratis y siempre activo) pero el backend Flask probablemente corre en Render, Railway o localmente. Si es un servicio gratuito con cold start, el '< 500ms de respuesta' podría no cumplirse en la primera petición. Deberían ser transparentes sobre dónde vive el backend y sus limitaciones."
+          },
+        ]
+      },
+      {
+        id: "futuro",
+        label: "Trabajo a futuro e impacto",
+        color: "#B7770D",
+        emoji: "🚀",
+        questions: [
+          {
+            q: "En trabajo a futuro mencionan 'soporte en español'. Dado que el restaurante es para comensales mexicanos, ¿por qué desarrollaron el sistema completamente en inglés desde el inicio?",
+            a: "Es una inconsistencia notable entre el dominio del problema (restaurante italiano para clientes mexicanos) y el idioma del sistema (inglés). La justificación podría ser que el dataset de Kaggle estaba en inglés y traducirlo habría sido costoso, o que los modelos de spaCy en inglés son más robustos. Sin embargo, deberían reconocerlo como una limitación actual, no solo como trabajo futuro."
+          },
+          {
+            q: "¿Cómo medirían el éxito real del sistema si se desplegara en un restaurante verdadero? ¿Qué métricas de negocio usarían más allá del F1-score?",
+            a: "El F1 mide el modelo, no el impacto. Métricas de negocio relevantes serían: tasa de conversión de reservas, satisfacción del usuario (CSAT), porcentaje de consultas resueltas sin intervención humana, y tiempo promedio de interacción. Un proyecto maduro conecta las métricas técnicas con métricas de valor real para el usuario final."
+          },
+          {
+            q: "Si un usuario tiene una alergia severa y el sistema falla en detectarla, ¿existe algún mecanismo de protección o descargo de responsabilidad? ¿Cómo manejan la responsabilidad ética de un sistema de seguridad alimentaria?",
+            a: "Esta es probablemente la pregunta más importante del proyecto. Un sistema con implicaciones de salud debería tener: (1) un aviso explícito de que no reemplaza el asesoramiento de personal capacitado, (2) una política clara de qué hacer cuando la confianza del modelo es baja, y (3) registro de auditoría de todas las recomendaciones dietéticas. Sin esto, el sistema podría causar daño real aunque su F1 sea 0.97."
+          },
+        ]
+      },
+    ];
+
+    function App() {
+      const [openCat, setOpenCat] = useState(null);
+      const [openQ, setOpenQ] = useState({});
+
+      const toggleCat = (id) => {
+        setOpenCat(prev => prev === id ? null : id);
+        setOpenQ({});
+      };
+
+      const toggleQ = (catId, idx) => {
+        const key = `${catId}-${idx}`;
+        setOpenQ(prev => ({ ...prev, [key]: !prev[key] }));
+      };
+
+      return (
+        <div style={{
+          minHeight: "100vh",
+          background: "#0f0f0f",
+          fontFamily: "'Georgia', 'Times New Roman', serif",
+          padding: "2rem 1rem",
+          color: "#f0ece4"
+        }}>
+          {/* Header */}
+          <div style={{ maxWidth: 760, margin: "0 auto 2.5rem" }}>
+            <div style={{ fontSize: "0.75rem", letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+              IPN · ESCOM · Tecnologías del Lenguaje Natural
+            </div>
+            <h1 style={{
+              fontSize: "clamp(1.6rem, 4vw, 2.4rem)",
+              fontWeight: "normal",
+              margin: "0 0 0.4rem",
+              lineHeight: 1.2,
+              color: "#f0ece4"
+            }}>
+              🍕 Tilin's Kitchen
+            </h1>
+            <p style={{ fontSize: "1.05rem", color: "#aaa", margin: 0, fontStyle: "italic" }}>
+              Preguntas críticas para la exposición — con respuestas sugeridas
+            </p>
+            <div style={{
+              marginTop: "1.2rem",
+              display: "flex", gap: "1rem", flexWrap: "wrap",
+              fontSize: "0.8rem", color: "#666"
+            }}>
+              <span>📂 {categories.length} categorías</span>
+              <span>❓ {categories.reduce((a, c) => a + c.questions.length, 0)} preguntas</span>
+              <span>💡 Con respuesta sugerida</span>
+            </div>
+          </div>
+
+          {/* Categories */}
+          <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {categories.map((cat) => {
+              const isOpen = openCat === cat.id;
+              return (
+                <div key={cat.id} style={{
+                  border: `1px solid ${isOpen ? cat.color : "#2a2a2a"}`,
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  transition: "border-color 0.2s"
+                }}>
+                  <button
+                    onClick={() => toggleCat(cat.id)}
+                    style={{
+                      width: "100%",
+                      background: isOpen ? `${cat.color}18` : "#161616",
+                      border: "none",
+                      padding: "1rem 1.25rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      textAlign: "left",
+                      transition: "background 0.2s"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <span style={{
+                        background: cat.color,
+                        color: "#fff",
+                        borderRadius: "50%",
+                        width: 32, height: 32,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "0.85rem", flexShrink: 0
+                      }}>{cat.emoji}</span>
+                      <div>
+                        <div style={{ fontSize: "1rem", fontWeight: "bold", color: "#f0ece4" }}>{cat.label}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#777", marginTop: 2 }}>{cat.questions.length} preguntas</div>
+                      </div>
+                    </div>
+                    <span style={{
+                      color: cat.color, fontSize: "1.2rem",
+                      transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s", flexShrink: 0
+                    }}>›</span>
+                  </button>
+
+                  {isOpen && (
+                    <div style={{ background: "#111", padding: "0.5rem 1rem 1rem" }}>
+                      {cat.questions.map((item, idx) => {
+                        const key = `${cat.id}-${idx}`;
+                        const qOpen = !!openQ[key];
+                        return (
+                          <div key={idx} style={{
+                            marginTop: "0.75rem",
+                            border: "1px solid #232323",
+                            borderRadius: "6px",
+                            overflow: "hidden"
+                          }}>
+                            <button
+                              onClick={() => toggleQ(cat.id, idx)}
+                              style={{
+                                width: "100%",
+                                background: qOpen ? "#1a1a1a" : "#141414",
+                                border: "none",
+                                padding: "0.9rem 1rem",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "0.75rem",
+                                textAlign: "left"
+                              }}
+                            >
+                              <span style={{
+                                color: cat.color,
+                                fontWeight: "bold",
+                                fontSize: "0.85rem",
+                                flexShrink: 0,
+                                marginTop: 2
+                              }}>P{idx + 1}</span>
+                              <span style={{ color: "#ddd", fontSize: "0.92rem", lineHeight: 1.5, flex: 1 }}>
+                                {item.q}
+                              </span>
+                              <span style={{
+                                color: "#555", fontSize: "0.9rem", flexShrink: 0,
+                                transform: qOpen ? "rotate(180deg)" : "rotate(0deg)",
+                                transition: "transform 0.2s"
+                              }}>▾</span>
+                            </button>
+
+                            {qOpen && (
+                              <div style={{
+                                background: `${cat.color}0d`,
+                                borderTop: `1px solid ${cat.color}30`,
+                                padding: "0.9rem 1rem 0.9rem 2.5rem"
+                              }}>
+                                <div style={{
+                                  fontSize: "0.7rem", letterSpacing: "0.15em",
+                                  color: cat.color, textTransform: "uppercase",
+                                  marginBottom: "0.5rem", fontFamily: "monospace"
+                                }}>→ Respuesta sugerida</div>
+                                <p style={{
+                                  color: "#bbb", fontSize: "0.88rem",
+                                  lineHeight: 1.7, margin: 0,
+                                  fontFamily: "'Georgia', serif"
+                                }}>{item.a}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ maxWidth: 760, margin: "2rem auto 0", textAlign: "center", fontSize: "0.75rem", color: "#444" }}>
+            Haz clic en una categoría para ver las preguntas · Haz clic en una pregunta para ver la respuesta sugerida
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
